@@ -1,0 +1,63 @@
+import numpy as np
+import pandas as pd
+
+def data_load():
+    A=np.array(pd.read_csv('coef_matrix.txt',header=None),dtype=np.float64) # A is a m*n matrix
+    b=np.array(pd.read_csv('constrain.txt',header=None),dtype=np.float64)[0] # b is a vector of length m
+    c=np.array(pd.read_csv('var_weight.txt',header=None),dtype=np.float64)[0] # c is a vector of length n
+    m,n=A.shape
+    if b.shape[0]!=m or c.shape[0]!=n:
+        print(b.shape[0],c.shape[0],m,n)
+        print("Data Error!")
+        return
+    return A,b,c
+
+def Big_M_Method(A,b,c):
+    M=1e6
+    # m: number of equalities
+    # n: number of variables
+    m,n=A.shape
+    A_augmented=np.concatenate((A,np.eye(m)),axis=1)
+    c_augmented=np.concatenate((c,M*np.ones(m)))
+    delta=c_augmented-M*np.sum(A_augmented,axis=0)
+    
+    base=list(range(n,m+n))
+    epoch=0
+    while np.any(delta<0):
+        if epoch>10:
+            break
+        base_in_var= np.min(np.where(delta==delta.min()))
+        base_out_id=-1
+        min_positive_quotient=-1
+        for i in range(m):
+            if A_augmented[i][base_in_var]>0:
+                if min_positive_quotient==-1:
+                    min_positive_quotient=b[i]/A_augmented[i][base_in_var]
+                    base_out_id=i
+                elif min_positive_quotient > b[i]/A_augmented[i][base_in_var]:
+                    min_positive_quotient=b[i]/A_augmented[i][base_in_var]
+                    base_out_id=i
+        if base_out_id==-1:
+            return "No feasible solution!"
+        base[base_out_id]=base_in_var
+        
+        tmp=A_augmented[base_out_id][base_in_var]
+        A_augmented[base_out_id,:]=A_augmented[base_out_id,:]/tmp
+        b[base_out_id]= b[base_out_id]/tmp
+        
+        for i in range(m):
+            if i!=base_out_id:
+                b[i]=b[i]-A_augmented[i][base_in_var]*b[base_out_id];
+                A_augmented[i,:]=A_augmented[i,:]-A_augmented[i][base_in_var]*A_augmented[base_out_id,:]
+        delta=delta-delta[base_in_var]*A_augmented[base_out_id,:]
+        # print("Eopch:",epoch,delta,b,base)
+        # print(A_augmented)
+        epoch+=1
+
+    output=np.zeros(n)
+    for i in range(m):
+        if base[i]<n:
+            output[base[i]]=b[i]
+    return output
+
+x=Big_M_Method(A,b,c)
